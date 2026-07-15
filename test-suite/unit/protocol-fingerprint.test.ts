@@ -168,7 +168,9 @@ it.effect(
         expect(yield* fingerprintProtocolContract(mutated), path.join(".")).not.toBe(baseline);
       }
     }),
-  10_000,
+  // This gate intentionally hashes every result-contract leaf. Its runtime grows linearly with
+  // the protocol; optimize or shard the exhaustive check before raising this budget again.
+  30_000,
 );
 
 it.effect("changes the fingerprint when any evaluation projector contract leaf changes", () =>
