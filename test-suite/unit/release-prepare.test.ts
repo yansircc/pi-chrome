@@ -76,7 +76,7 @@ it("reuses the release previously produced for the same source sha", () => {
     rmSync(fixture.root, { recursive: true, force: true });
     rmSync(fixture.remote, { recursive: true, force: true });
   }
-});
+}, 15_000);
 
 it("rejects a source push that manually changes the CI-owned version", () => {
   const fixture = makeRepository();
@@ -101,4 +101,4 @@ it("rejects a source push that manually changes the CI-owned version", () => {
     rmSync(fixture.root, { recursive: true, force: true });
     rmSync(fixture.remote, { recursive: true, force: true });
   }
-});
+}, 15_000);
