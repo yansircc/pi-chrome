@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+- Added verified npm publication for version-matched `v*` tags, including provenance and a
+  public-registry Pi installation check.
+- Exhaustively verified that protocol fingerprints change for every finite operation-budget
+  mutation.
+
 ## 0.1.1
 
 - Moved the Effect/tsgo preparation hook out of registry-consumer installation so the published
