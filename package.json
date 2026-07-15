@@ -60,7 +60,7 @@
     "repo:verify": "vp run ci:verify",
     "pi:assets-build": "node scripts/build.ts",
     "pi:domain-check": "node scripts/domain/verify-extension.mjs",
-    "release:check": "vp run smoke:connector:release",
+    "release:check": "node scripts/release-check.ts",
     "pi:build": "pnpm run pi:assets-build && node scripts/pi-extension/build.mjs",
     "pi:bundle-check": "node scripts/pi-extension/verify-distribution.mjs bundle",
     "pi:distribution-check": "node scripts/pi-extension/verify-distribution.mjs package",
@@ -73,7 +73,9 @@
     "@effect/platform-node": "4.0.0-beta.97",
     "@effect/tsgo": "0.21.0",
     "@effect/vitest": "4.0.0-beta.97",
+    "@puppeteer/browsers": "3.0.6",
     "@types/chrome": "0.1.36",
+    "@types/cross-spawn": "6.0.6",
     "@types/node": "22.20.1",
     "@yansircc/effect-scan": "0.1.2",
     "acorn": "8.15.0",
@@ -84,7 +86,8 @@
     "typescript": "7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yauzl": "3.4.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
