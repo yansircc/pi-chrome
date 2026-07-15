@@ -165,9 +165,11 @@ export const launchChrome = async (
   initialUrl: string,
 ): Promise<LaunchedChrome> => {
   const executable = await selectChrome();
+  const sandboxArguments = process.env.PI_CHROME_SMOKE_NO_SANDBOX === "1" ? ["--no-sandbox"] : [];
   const child = spawn(
     executable,
     [
+      ...sandboxArguments,
       "--headless=new",
       "--remote-debugging-port=0",
       "--remote-allow-origins=*",

@@ -83,6 +83,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PI_CHROME_SMOKE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          PI_CHROME_SMOKE_NO_SANDBOX: "1"
 
       - name: Verify public package through Pi
         shell: bash

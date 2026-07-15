@@ -212,6 +212,10 @@ vp run smoke:connector
 
 `vp run smoke:connector` builds a temporary extension against a random fake-bridge port and runs it in a fresh Chrome for Testing/Chromium profile. It never polls the production bridge. Branded Chrome 137+ rejects command-line unpacked extensions, so set `PI_CHROME_SMOKE_CHROME` to a Chrome for Testing or Chromium executable on non-macOS systems or when macOS auto-discovery cannot find one.
 
+The isolated GitHub-hosted Ubuntu release runner sets `PI_CHROME_SMOKE_NO_SANDBOX=1` because its
+AppArmor policy blocks Chrome's user-namespace sandbox. Remove that opt-in when the hosted runner
+provides a usable Chrome sandbox or the release smoke moves to a sandbox-capable runner.
+
 Extension publication is staged and validated before replacement. Prepare or validation failure
 leaves the previous directory untouched. If the staging-to-live rename fails after backup, the build
 attempts restoration; if restoration also fails, both failures and the exact backup path are
