@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify package
+        run: pnpm exec vp run verify
+
+  publish:
+    name: Publish npm package
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Require tag to match package version
+        shell: bash
+        run: |
+          package_version="$(node --print "require('./package.json').version")"
+          expected_tag="v${package_version}"
+
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package version ${package_version}." >&2
+            exit 1
+
+      - name: Install Chrome for Testing
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PI_CHROME_SMOKE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+
+      - name: Verify public package through Pi
+        shell: bash
+        run: |
+          package_name="$(node --print "require('./package.json').name")"
+          package_version="$(node --print "require('./package.json').version")"
+          package_identity="${package_name}@${package_version}"
+          registry_report="${RUNNER_TEMP}/npm-view.json"
+
+          visible=false
+          for _ in {1..12}; do
+            if NPM_CONFIG_USERCONFIG=/dev/null \
+              npm view "${package_identity}" name version dist.tarball --json \
+              >"${registry_report}" 2>/dev/null; then
+              visible=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ "${visible}" != "true" ]]; then
+            echo "${package_identity} did not become visible in the public registry." >&2
+            exit 1
+          fi
+
+          cat "${registry_report}"
+          temp_pi="$(mktemp -d)"
+          trap 'rm -rf "${temp_pi}"' EXIT
+
+          PI_CODING_AGENT_DIR="${temp_pi}" \
+            NPM_CONFIG_USERCONFIG=/dev/null \
+            pnpm exec pi install "npm:${package_identity}"
+          PI_CODING_AGENT_DIR="${temp_pi}" \
+            NPM_CONFIG_USERCONFIG=/dev/null \
+            pnpm exec pi list

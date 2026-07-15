@@ -40,7 +40,7 @@ export default defineConfig({
         cache: false,
       },
       "lint:effect": {
-        command: "effect-skill-scan . --strict --output raw-json --profile",
+        command: "pnpm run scan:effect",
         cache: false,
       },
       "package:artifact": {

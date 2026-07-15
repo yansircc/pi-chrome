@@ -49,7 +49,8 @@ Include:
 - Add the release entry to `CHANGELOG.md`.
 - Preserve the build graph's Chrome 120 minimum unless the runtime contract is intentionally raised with tests and documentation.
 - Run `vp run release` with a real Chrome for Testing or Chromium executable available.
-- `pnpm publish --access public`.
+- Commit and push the version change to `main`, then push an annotated `v<package version>` tag.
+- GitHub Actions verifies the tag against `package.json`, publishes with provenance, and installs the public package in an isolated Pi directory. Do not publish the same version manually.
 
 ## Code of conduct
 
