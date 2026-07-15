@@ -210,7 +210,7 @@ vp run smoke:connector
 
 `vp run verify` runs Vite+ formatting and linting; one strict Effect-language-service TypeScript gate for the entire repository; the browser and self-contained Pi builds; Vitest; Knip; the Effect ecosystem scanner; and a package-artifact gate that packs without lifecycle recursion, extracts the tarball into a dependency-free temporary directory, and loads the bundled Pi entry through the real Pi extension loader.
 
-`vp run smoke:connector` builds a temporary extension against a random fake-bridge port and runs it in a fresh Chrome for Testing/Chromium profile. It never polls the production bridge. Branded Chrome 137+ rejects command-line unpacked extensions, so set `PI_CHROME_SMOKE_CHROME` to a Chrome for Testing or Chromium executable when auto-discovery cannot find one.
+`vp run smoke:connector` builds a temporary extension against a random fake-bridge port and runs it in a fresh Chrome for Testing/Chromium profile. It never polls the production bridge. Branded Chrome 137+ rejects command-line unpacked extensions, so set `PI_CHROME_SMOKE_CHROME` to a Chrome for Testing or Chromium executable on non-macOS systems or when macOS auto-discovery cannot find one.
 
 Extension publication is staged and validated before replacement. Prepare or validation failure
 leaves the previous directory untouched. If the staging-to-live rename fails after backup, the build

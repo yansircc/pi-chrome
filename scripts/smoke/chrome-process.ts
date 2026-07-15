@@ -121,11 +121,6 @@ const playwrightChromeForTesting = async (): Promise<string | undefined> => {
 };
 
 const selectChrome = async (): Promise<string> => {
-  if (process.platform !== "darwin") {
-    throw new SmokeSkip(
-      "connector smoke requires macOS Chrome for Testing because it validates the real MV3 runtime",
-    );
-  }
   const override = process.env.PI_CHROME_SMOKE_CHROME;
   if (override) {
     if (!(await exists(override))) {
@@ -137,6 +132,12 @@ const selectChrome = async (): Promise<string> => {
       );
     }
     return override;
+  }
+
+  if (process.platform !== "darwin") {
+    throw new SmokeSkip(
+      "connector smoke requires PI_CHROME_SMOKE_CHROME outside macOS because browser discovery is platform-specific",
+    );
   }
 
   const installedCandidates = [
