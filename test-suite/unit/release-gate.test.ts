@@ -1,5 +1,6 @@
 import { expect, it } from "vite-plus/test";
 import packageJson from "../../package.json" with { type: "json" };
+import { requireReleaseTag } from "../../scripts/release-tag.ts";
 import viteConfig from "../../vite.config.js";
 
 type Task = {
@@ -39,4 +40,14 @@ it("requires verification and a real connector smoke before publishing", () => {
   );
   expect(lintOptions).toEqual({ typeAware: true, typeCheck: false });
   expect(tasks.verify?.command).toContain("vp run typecheck");
+});
+
+it("requires a version-matched release tag", () => {
+  expect(() => requireReleaseTag(`v${packageJson.version}`, packageJson.version)).not.toThrow();
+  expect(() => requireReleaseTag(packageJson.version, packageJson.version)).toThrow(
+    `Tag ${packageJson.version} does not match package version ${packageJson.version}.`,
+  );
+  expect(() => requireReleaseTag(undefined, packageJson.version)).toThrow(
+    `Tag <missing> does not match package version ${packageJson.version}.`,
+  );
 });

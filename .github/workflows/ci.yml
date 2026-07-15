@@ -67,14 +67,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Require tag to match package version
-        shell: bash
-        run: |
-          package_version="$(node --print "require('./package.json').version")"
-          expected_tag="v${package_version}"
-
-          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match package version ${package_version}." >&2
-            exit 1
+        run: node scripts/require-release-tag.ts
 
       - name: Install Chrome for Testing
         id: chrome
