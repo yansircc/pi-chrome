@@ -104,6 +104,14 @@ type ExpectedPack = {
   readonly filename: string;
 };
 
+export const packageArchiveFilename = (name: string, version: string): string => {
+  const identity = name.startsWith("@") ? name.slice(1).split("/") : [name];
+  if (identity.some((part) => !part) || identity.length > 2) {
+    throw new Error(`Invalid npm package identity: ${name}`);
+  }
+  return `${identity.join("-")}-${version}.tgz`;
+};
+
 export const parsePnpmPackReport = (
   output: string,
   expected: ExpectedPack,
@@ -225,7 +233,10 @@ export const verifyPackageArtifact = async (root: string): Promise<void> => {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "pi-chrome-package-artifact-"));
   const failures: Array<unknown> = [];
   try {
-    const tarball = join(temporaryDirectory, `${manifest.name}-${manifest.version}.tgz`);
+    const tarball = join(
+      temporaryDirectory,
+      packageArchiveFilename(manifest.name, manifest.version),
+    );
     const packReport = await run(
       "pnpm",
       ["--config.ignore-scripts=true", "pack", "--json", "--out", tarball],

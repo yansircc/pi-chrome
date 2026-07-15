@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
+
+- Moved the Effect/tsgo preparation hook out of registry-consumer installation so the published
+  archive installs without repository-only build scripts.
+
+## 0.1.0
 
 - Upgraded the repository compiler and local language-service substrate to TypeScript 7.0.2.
 - Made navigation complete at document commit by default, with full-load waiting explicit, and
@@ -65,10 +70,6 @@
 - Made extension directory replacement recover the unique last-known-good backup after interrupted publication and fail closed on ambiguous backups.
 - Restricted the npm tarball to the Pi runtime source closure, complete built extension, and documentation; added install-and-import artifact verification.
 - Preserved staging, restore, backup-cleanup, and package-temp cleanup failures alongside their primary failure instead of overwriting it.
-
-## 0.16.0
-
-Breaking rewrite with no compatibility layer.
 
 - Replaced the previous public surface with exactly `chrome_tab`, `chrome_page`, and `chrome_input`.
 - Made Effect Schema the single owner of public parameters and wire commands.

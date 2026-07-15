@@ -1,6 +1,6 @@
 {
-  "name": "pi-chrome",
-  "version": "0.16.0",
+  "name": "@yansircc/pi-chrome",
+  "version": "0.1.1",
   "description": "Let Pi use your existing signed-in Chrome profile after explicit authorization.",
   "keywords": [
     "agent",
@@ -41,13 +41,6 @@
     "type": "git",
     "url": "git+https://github.com/yansircc/pi-chrome.git"
   },
-  "workspaces": {
-    "catalog": {
-      "vite": "npm:@voidzero-dev/vite-plus-core@0.2.4",
-      "vitest": "4.1.10",
-      "vite-plus": "0.2.4"
-    }
-  },
   "files": [
     "dist/browser-extension",
     "dist/pi",
@@ -59,8 +52,11 @@
     "LICENSE"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "postinstall": "node scripts/prepare-effect-tsgo.mjs",
+    "prepare": "node scripts/prepare-effect-tsgo.mjs",
     "prepack": "vp run build",
     "prepublishOnly": "vp run release"
   },
@@ -80,7 +76,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.6"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {

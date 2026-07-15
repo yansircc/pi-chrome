@@ -11,21 +11,8 @@ All 25 atomic tools are registered, but only the core set is active by default. 
 
 ## Install
 
-Build one self-contained archive:
-
 ```bash
-vp run verify
-pnpm pack --out pi-chrome-0.16.0.tgz
-```
-
-Extract it into a stable directory on the Pi host:
-
-```bash
-mkdir -p "$HOME/pi-plugins/pi-chrome"
-tar -xzf pi-chrome-0.16.0.tgz \
-  -C "$HOME/pi-plugins/pi-chrome" \
-  --strip-components=1
-pi install "$HOME/pi-plugins/pi-chrome"
+pi install npm:@yansircc/pi-chrome@0.1.1
 ```
 
 Then run:
@@ -34,12 +21,12 @@ Then run:
 /chrome onboard
 ```
 
-Load `$HOME/pi-plugins/pi-chrome/dist/browser-extension` from `chrome://extensions` with Developer
-mode enabled. The archive contains a bundled Pi entry and requires no `npm install`. For Pi
-Terminal, click the extension icon in the profile Pi should use and enter the one-time token. For
-`pi-web`, install the extension in each eligible profile but do not choose a global profile: the
-profile containing the `pi-web` page is attached to that Pi session. Then verify Terminal
-pairing with:
+The command prints the installed `dist/browser-extension` path. Load that folder from
+`chrome://extensions` with Developer mode enabled. The npm package contains a bundled Pi entry and
+requires no package-local dependency install. For Pi Terminal, click the extension icon in the
+profile Pi should use and enter the one-time token. For `pi-web`, install the extension in each
+eligible profile but do not choose a global profile: the profile containing the `pi-web` page is
+attached to that Pi session. Then verify Terminal pairing with:
 
 ```text
 /chrome doctor

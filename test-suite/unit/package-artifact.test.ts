@@ -1,5 +1,9 @@
 import { expect, it } from "@effect/vitest";
-import { parsePnpmPackReport, validatePackedFileSet } from "../../scripts/package-artifact.js";
+import {
+  packageArchiveFilename,
+  parsePnpmPackReport,
+  validatePackedFileSet,
+} from "../../scripts/package-artifact.js";
 import {
   RELEASE_BUILD_GRAPH,
   validatePiBundleSource,
@@ -96,6 +100,13 @@ it("parses the exact pnpm pack artifact report", () => {
 
   expect(packedFiles).toEqual(
     new Set(["package/package.json", "package/dist/browser-extension/manifest.json"]),
+  );
+});
+
+it("projects scoped package identities to one archive basename", () => {
+  expect(packageArchiveFilename("pi-chrome", "0.0.1")).toBe("pi-chrome-0.0.1.tgz");
+  expect(packageArchiveFilename("@yansircc/pi-chrome", "0.0.1")).toBe(
+    "yansircc-pi-chrome-0.0.1.tgz",
   );
 });
 
