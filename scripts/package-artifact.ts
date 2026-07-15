@@ -200,7 +200,7 @@ const loadExtractedPiEntries = async (
   }
 };
 
-export const verifyPackageArtifact = async (root: string): Promise<void> => {
+export const verifyPackageArtifact = async (root: string, archiveInput?: string): Promise<void> => {
   validateReleaseBuildGraph();
   const manifest = await readManifest(join(root, "package.json"));
   const connectorAuth = JSON.parse(
@@ -233,29 +233,34 @@ export const verifyPackageArtifact = async (root: string): Promise<void> => {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "pi-chrome-package-artifact-"));
   const failures: Array<unknown> = [];
   try {
-    const tarball = join(
-      temporaryDirectory,
-      packageArchiveFilename(manifest.name, manifest.version),
-    );
-    const packReport = await run(
-      "pnpm",
-      ["--config.ignore-scripts=true", "pack", "--json", "--out", tarball],
-      {
-        cwd: root,
-        env: { ...process.env, npm_config_ignore_scripts: "true" },
-      },
-    );
-    const packedFiles = parsePnpmPackReport(packReport, {
-      name: manifest.name,
-      version: manifest.version,
-      filename: tarball,
-    });
-    validatePackedFileSet(packedFiles, runtimeFiles);
-
+    const tarball =
+      archiveInput === undefined
+        ? join(temporaryDirectory, packageArchiveFilename(manifest.name, manifest.version))
+        : resolve(root, archiveInput);
+    let packedFiles: ReadonlySet<string> | undefined;
+    if (archiveInput === undefined) {
+      const packReport = await run(
+        "pnpm",
+        ["--config.ignore-scripts=true", "pack", "--json", "--out", tarball],
+        {
+          cwd: root,
+          env: { ...process.env, npm_config_ignore_scripts: "true" },
+        },
+      );
+      packedFiles = parsePnpmPackReport(packReport, {
+        name: manifest.name,
+        version: manifest.version,
+        filename: tarball,
+      });
+    }
     const extracted = join(temporaryDirectory, "extracted");
     await mkdir(extracted, { recursive: true });
     await run("tar", ["-xzf", tarball, "-C", extracted], { cwd: root });
     const extractedRoot = join(extracted, "package");
+    const extractedFiles = new Set(
+      (await listFiles(extractedRoot)).map((path) => `package/${path}`),
+    );
+    validatePackedFileSet(packedFiles ?? extractedFiles, runtimeFiles);
     const extractedManifest = await readManifest(join(extractedRoot, "package.json"));
     await loadExtractedPiEntries(
       extractedRoot,
@@ -281,6 +286,15 @@ export const verifyPackageArtifact = async (root: string): Promise<void> => {
 
 const currentFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === currentFile) {
-  await verifyPackageArtifact(dirname(dirname(currentFile)));
+  const archiveFlag = process.argv[2];
+  if (archiveFlag !== undefined && archiveFlag !== "--archive") {
+    throw new Error("usage: package-artifact.ts [--archive <archive>]");
+  }
+  const archiveArguments = process.argv.slice(3);
+  if (archiveArguments[0] === "--") archiveArguments.shift();
+  if (archiveFlag === "--archive" && archiveArguments.length !== 1) {
+    throw new Error("--archive requires exactly one archive path");
+  }
+  await verifyPackageArtifact(dirname(dirname(currentFile)), archiveArguments[0]);
   console.log("PASS package artifact: tarball contents and zero-install Pi loading");
 }

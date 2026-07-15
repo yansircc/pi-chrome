@@ -56,7 +56,8 @@
     "access": "public"
   },
   "scripts": {
-    "scan:effect": "effect-scan . --strict --output raw-json --profile",
+    "archive:check": "node scripts/package-artifact.ts --archive",
+    "scan:effect": "effect-scan . --strict --output gate-json --evidence .effect-scan --fail-on-suppression-drift",
     "prepare": "node scripts/prepare-effect-tsgo.mjs",
     "prepack": "vp run build",
     "prepublishOnly": "vp run release"

@@ -45,12 +45,11 @@ Include:
 
 ## Releasing
 
-- Bump `package.json` version using a Chrome-compatible numeric version (1-4 dot-separated integers; no prerelease or build suffix).
 - Add the release entry to `CHANGELOG.md`.
 - Preserve the build graph's Chrome 120 minimum unless the runtime contract is intentionally raised with tests and documentation.
 - Run `vp run release` with a real Chrome for Testing or Chromium executable available.
-- Commit and push the version change to `main`, then push an annotated `v<package version>` tag.
-- GitHub Actions verifies the tag against `package.json`, publishes with provenance, and installs the public package in an isolated Pi directory. Do not publish the same version manually.
+- Push the source change to `main`. CI owns `package.json` version changes, the release commit, and the annotated tag. The default bump is patch; use exactly one `Release-Bump: minor` or `Release-Bump: major` commit trailer when required.
+- GitHub Actions packs once, loads that exact archive through Pi on Linux, macOS, and Windows, publishes it through npm Trusted Publishing with provenance, and verifies the public archive. Do not publish or tag the same version manually.
 
 ## Code of conduct
 
