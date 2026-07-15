@@ -8,6 +8,7 @@ import * as PlatformError from "effect/PlatformError";
 import * as Scope from "effect/Scope";
 import { saveScreenshot } from "../../src/pi/screenshot.js";
 import type { PageCall } from "../../src/protocol/schema.js";
+import { assertPosixFileMode } from "../support/posix-file-mode.js";
 
 type ScreenshotOperation = Extract<PageCall["operation"], { readonly kind: "screenshot" }>;
 
@@ -128,6 +129,7 @@ it.effect("publishes one complete tile-set directory without claiming a stitched
   withTemporaryDirectory((directory) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
       const workspace = yield* fs.realPath(directory);
       const saved = yield* saveScreenshot(
         directory,
@@ -140,7 +142,7 @@ it.effect("publishes one complete tile-set directory without claiming a stitched
 
       expect(saved.value).toMatchObject({
         kind: "tile-set",
-        directory: `${workspace}/page-tiles`,
+        directory: path.join(workspace, "page-tiles"),
         format: "png",
         dimensions: { width: 10, height: 20 },
         tiles: [{ y: 0 }, { y: 10 }],
@@ -483,14 +485,15 @@ it.effect("publishes private image and tile-set permissions", () =>
         ]),
       );
 
-      expect(
-        (yield* fs.stat(image.value.kind === "image" ? image.value.path : "")).mode & 0o777,
-      ).toBe(0o600);
+      assertPosixFileMode(
+        (yield* fs.stat(image.value.kind === "image" ? image.value.path : "")).mode,
+        0o600,
+      );
       if (tiles.value.kind === "tile-set") {
-        expect((yield* fs.stat(tiles.value.directory)).mode & 0o777).toBe(0o700);
-        expect((yield* fs.stat(tiles.value.manifestPath)).mode & 0o777).toBe(0o600);
+        assertPosixFileMode((yield* fs.stat(tiles.value.directory)).mode, 0o700);
+        assertPosixFileMode((yield* fs.stat(tiles.value.manifestPath)).mode, 0o600);
         for (const tile of tiles.value.tiles) {
-          expect((yield* fs.stat(tile.path)).mode & 0o777).toBe(0o600);
+          assertPosixFileMode((yield* fs.stat(tile.path)).mode, 0o600);
         }
       }
     }),

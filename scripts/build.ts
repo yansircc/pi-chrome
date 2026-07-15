@@ -17,12 +17,6 @@ import {
   validateBuildGraph,
   validateExtensionDirectory,
 } from "./extension-build-graph.ts";
-import {
-  RELEASE_BUILD_GRAPH,
-  isPiBundleExternal,
-  validatePiBundleDirectory,
-  validateReleaseBuildGraph,
-} from "./release-build-graph.ts";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const arguments_ = process.argv.slice(2);
@@ -55,26 +49,31 @@ if (
   throw new Error(`--bridge-url must be an explicit http://${BRIDGE_HOST}:<port> origin`);
 }
 const explicitOutput = argumentsByName.get("--out-dir");
-const output = resolve(
-  root,
-  explicitOutput ??
-    join(RELEASE_BUILD_GRAPH.outputDirectory, RELEASE_BUILD_GRAPH.browser.directory),
-);
+const packageJson: unknown = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+if (
+  typeof packageJson !== "object" ||
+  packageJson === null ||
+  !("version" in packageJson) ||
+  typeof packageJson.version !== "string" ||
+  !("files" in packageJson) ||
+  !Array.isArray(packageJson.files) ||
+  packageJson.files.some((file) => typeof file !== "string")
+) {
+  throw new Error("package.json must declare a string version and published file paths");
+}
+const publishedFiles = packageJson.files as Array<string>;
+const browserAsset = publishedFiles.filter((asset) => asset.endsWith("/browser-extension"));
+const browserOutput = browserAsset[0];
+if (browserAsset.length !== 1 || browserOutput === undefined) {
+  throw new Error("Pi extension profile must declare exactly one browser-extension asset");
+}
+const output = resolve(root, explicitOutput ?? browserOutput);
 const outputFromTemp = relative(resolve(tmpdir()), output);
 if (
   explicitOutput &&
   (!outputFromTemp || outputFromTemp.startsWith("..") || isAbsolute(outputFromTemp))
 ) {
   throw new Error("Explicit --out-dir must be inside the operating-system temporary directory");
-}
-const packageJson: unknown = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-if (
-  typeof packageJson !== "object" ||
-  packageJson === null ||
-  !("version" in packageJson) ||
-  typeof packageJson.version !== "string"
-) {
-  throw new Error("package.json version must be a string");
 }
 const sourceManifest: unknown = JSON.parse(
   await readFile(join(root, EXTENSION_BUILD_GRAPH.manifest.source), "utf8"),
@@ -144,48 +143,7 @@ const prepareExtension = async (directory: string): Promise<void> => {
   }
 };
 
-const preparePiBundle = async (directory: string): Promise<void> => {
-  await build({
-    configFile: false,
-    root,
-    ssr: { noExternal: true },
-    build: {
-      emptyOutDir: false,
-      minify: false,
-      outDir: directory,
-      sourcemap: false,
-      ssr: join(root, RELEASE_BUILD_GRAPH.pi.source),
-      target: RELEASE_BUILD_GRAPH.pi.target,
-      rolldownOptions: {
-        external: (specifier) => isPiBundleExternal(specifier),
-        output: {
-          entryFileNames: RELEASE_BUILD_GRAPH.pi.output,
-          format: "esm",
-        },
-      },
-    },
-  });
-};
-
-validateReleaseBuildGraph();
-if (explicitOutput) {
-  await replaceDirectoryWithRollback(output, {
-    prepare: prepareExtension,
-    validate: (directory) => validateExtensionDirectory(directory, manifestInputs),
-  });
-} else {
-  const releaseOutput = resolve(root, RELEASE_BUILD_GRAPH.outputDirectory);
-  await replaceDirectoryWithRollback(releaseOutput, {
-    prepare: async (directory) => {
-      await prepareExtension(join(directory, RELEASE_BUILD_GRAPH.browser.directory));
-      await preparePiBundle(join(directory, RELEASE_BUILD_GRAPH.pi.directory));
-    },
-    validate: async (directory) => {
-      await validateExtensionDirectory(
-        join(directory, RELEASE_BUILD_GRAPH.browser.directory),
-        manifestInputs,
-      );
-      await validatePiBundleDirectory(join(directory, RELEASE_BUILD_GRAPH.pi.directory));
-    },
-  });
-}
+await replaceDirectoryWithRollback(output, {
+  prepare: prepareExtension,
+  validate: (directory) => validateExtensionDirectory(directory, manifestInputs),
+});

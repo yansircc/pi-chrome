@@ -47,7 +47,7 @@ jobs:
 
       - name: Verify package
         run: |
-          pnpm exec vp run verify
+          pnpm run verify
 
   release:
     name: Prepare release
@@ -99,7 +99,10 @@ jobs:
 
       - name: Verify package
         run: |
-          pnpm exec vp run verify
+          pnpm run verify
+
+      - name: Verify release domain
+        run: pnpm run release:check
 
       - name: Pack and install the verified archive
         shell: bash
@@ -158,7 +161,8 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
 
       - name: Download verified archive
         uses: actions/download-artifact@v8
@@ -166,16 +170,14 @@ jobs:
           name: npm-package-${{ github.sha }}
           path: release
 
-      - name: Install and load the verified archive
-        run: |
-          pnpm exec vp run build
-          pnpm run archive:check -- release/package.tgz
-
+      - name: Verify exact release archive
+        run: pnpm run release:archive-check -- release/package.tgz
   commit_release:
     name: Commit and tag release
     needs:
       - release
       - verify_archive
+
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -261,6 +263,7 @@ jobs:
     needs:
       - release
       - verify_archive
+
       - commit_release
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -330,7 +333,7 @@ jobs:
       - release
       - publish
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     permissions:
       contents: read
@@ -350,33 +353,59 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
 
-      - name: Verify public archive
+      - name: Download verified archive
+        uses: actions/download-artifact@v8
+        with:
+          name: npm-package-${{ github.sha }}
+          path: release
+
+      - name: Verify registry integrity and public installation
         shell: bash
         env:
           NPM_CONFIG_USERCONFIG: /dev/null
           PACKAGE_SPEC: ${{ needs.release.outputs.name }}@${{ needs.release.outputs.version }}
         run: |
-          visible=false
+          local_integrity="sha512-$(openssl dgst -sha512 -binary ./release/package.tgz | openssl base64 -A)"
+          remote_integrity=""
           for attempt in {1..60}; do
-            if npm view "${PACKAGE_SPEC}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
-              visible=true
+            if remote_json="$(npm view "${PACKAGE_SPEC}" dist.integrity --json --registry=https://registry.npmjs.org/ 2>/dev/null)"; then
+              remote_integrity="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]))' "${remote_json}")"
               break
             fi
             sleep 5
           done
-          if [[ "${visible}" != true ]]; then
+          if [[ -z "${remote_integrity}" ]]; then
             echo "${PACKAGE_SPEC} did not become publicly visible." >&2
             exit 1
           fi
-          mkdir -p release
-          npm pack "${PACKAGE_SPEC}" --pack-destination release
-          mapfile -t archives < <(find release -maxdepth 1 -type f -name '*.tgz')
+          if [[ "${remote_integrity}" != "${local_integrity}" ]]; then
+            echo "Public ${PACKAGE_SPEC} does not match the verified archive." >&2
+            exit 1
+          fi
+          install_root="$(mktemp -d)"
+          trap 'rm -rf "${install_root}"' EXIT
+          npm install "${PACKAGE_SPEC}" \
+            --prefix "${install_root}" \
+            --ignore-scripts=false \
+            --no-audit \
+            --no-fund
+
+      - name: Fetch public archive
+        shell: bash
+        env:
+          PACKAGE_SPEC: ${{ needs.release.outputs.name }}@${{ needs.release.outputs.version }}
+        run: |
+          mkdir -p public-release
+          npm pack "${PACKAGE_SPEC}" --pack-destination public-release
+          mapfile -t archives < <(find public-release -maxdepth 1 -type f -name '*.tgz')
           if [[ "${#archives[@]}" -ne 1 ]]; then
             echo "Expected one public npm archive, found ${#archives[@]}." >&2
             exit 1
           fi
-          mv "${archives[0]}" release/package.tgz
-          pnpm exec vp run build
-          pnpm run archive:check -- release/package.tgz
+          mv "${archives[0]}" public-release/package.tgz
+
+      - name: Verify public archive
+        run: pnpm run release:public-check -- public-release/package.tgz

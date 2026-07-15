@@ -27,16 +27,15 @@ it("requires verification and a real connector smoke before publishing", () => {
   expect(packageJson.files.filter((path) => path === "src" || path.startsWith("src/"))).toEqual([]);
   expect(packageJson).not.toHaveProperty("dependencies");
   expect(packageJson.pi.extensions).toEqual(["./dist/pi/extension.js"]);
-  expect(packageJson.scripts.prepack).toBe("vp run build");
-  expect(packageJson.scripts.prepublishOnly).toBe("vp run release");
-  expect(tasks.build?.command).toBe("node scripts/build.ts");
-  expect(tasks["package:artifact"]?.command).toBe("node scripts/package-artifact.ts");
-  expect(tasks.verify?.command).toContain("vp run package:artifact");
-  expect(tasks.verify?.command).toContain("vp run build");
-  expect(tasks.release?.command).toEqual(["vp run verify", "vp run smoke:connector:release"]);
+  expect(packageJson.scripts.verify).toBe("pnpm run repo:verify && pnpm run pi:verify");
+  expect(packageJson.scripts["pi:assets-build"]).toBe("node scripts/build.ts");
+  expect(packageJson.scripts["release:check"]).toBe("vp run smoke:connector:release");
+  expect(packageJson.scripts["release:archive-check"]).toContain("verify-distribution.mjs archive");
+  expect(packageJson.scripts["release:public-check"]).toContain("verify-distribution.mjs public");
+  expect(tasks.build?.command).toBe("pnpm run pi:build");
   expect(tasks["smoke:connector:release"]?.command).toBe(
-    "node scripts/smoke-connector.ts --require-browser",
+    "node scripts/smoke-connector.ts --require-browser --no-sandbox",
   );
   expect(lintOptions).toEqual({ typeAware: true, typeCheck: false });
-  expect(tasks.verify?.command).toContain("vp run typecheck");
+  expect(tasks["ci:verify"]?.command).toContain("vp run typecheck");
 });

@@ -11,6 +11,7 @@ import {
   ConnectorBindingStoreFailure,
   makeConnectorBindingStore,
 } from "../../src/pi/connector-binding.js";
+import { assertPosixFileMode } from "../support/posix-file-mode.js";
 
 const binding = {
   connectorId: "00000000-0000-4000-8000-000000000001",
@@ -60,8 +61,8 @@ it.effect("atomically persists one user-level connector binding", () =>
       expect(yield* fs.readDirectory(path.dirname(filePath))).toEqual([
         "profile-connector-binding.json",
       ]);
-      expect((yield* fs.stat(path.dirname(filePath))).mode & 0o777).toBe(0o700);
-      expect((yield* fs.stat(filePath)).mode & 0o777).toBe(0o600);
+      assertPosixFileMode((yield* fs.stat(path.dirname(filePath))).mode, 0o700);
+      assertPosixFileMode((yield* fs.stat(filePath)).mode, 0o600);
     }),
   ),
 );

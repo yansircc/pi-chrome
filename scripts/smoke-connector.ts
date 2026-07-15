@@ -71,13 +71,16 @@ const assertStablePublicIdentity = (
   }
 };
 
-const requireBrowserArgument = (): boolean => {
+const smokeOptions = (): { readonly requireBrowser: boolean; readonly noSandbox: boolean } => {
   const arguments_ = new Set(process.argv.slice(2));
   for (const argument of arguments_) {
-    if (argument !== "--require-browser")
+    if (argument !== "--require-browser" && argument !== "--no-sandbox")
       throw new SmokeFailure(`Unknown smoke option: ${argument}`);
   }
-  return arguments_.has("--require-browser");
+  return {
+    requireBrowser: arguments_.has("--require-browser"),
+    noSandbox: arguments_.has("--no-sandbox"),
+  };
 };
 
 const runSmoke = async (): Promise<void> => {
@@ -335,11 +338,12 @@ const runSmoke = async (): Promise<void> => {
   if (failures.length === 1) throw failures[0];
 };
 
-const requireBrowser = requireBrowserArgument();
+const options = smokeOptions();
+if (options.noSandbox) process.env.PI_CHROME_SMOKE_NO_SANDBOX = "1";
 try {
   await runSmoke();
 } catch (error) {
-  if (error instanceof SmokeSkip && !requireBrowser) {
+  if (error instanceof SmokeSkip && !options.requireBrowser) {
     console.log(`SKIP connector smoke: ${error.message}`);
   } else {
     const failure =

@@ -7,7 +7,7 @@ This is a strict TypeScript ESM package. `src/protocol/` owns wire contracts and
 ## Build, Test, and Development Commands
 
 - `pnpm install` installs pinned dependencies.
-- `vp run verify` runs the authoritative format, lint, typecheck, build, test, dead-code, Effect, and package-artifact gates.
+- `pnpm run verify` runs the authoritative format, lint, typecheck, build, test, dead-code, Effect, and distribution gates.
 - `vp test` runs unit tests; use a file argument for focused work.
 - `vp run build` regenerates the extension; `vp fmt` applies formatting.
 - `vp run smoke:connector` tests a temporary extension against an isolated fake bridge. Set `PI_CHROME_SMOKE_CHROME` if Chromium is not discovered.
@@ -19,7 +19,7 @@ Use two-space indentation, double quotes, semicolons, kebab-case files, camelCas
 
 ## Testing Guidelines
 
-Name unit tests `*.test.ts` in `test-suite/unit/`. Use Vitest and `@effect/vitest` for Effect programs. Behavior changes require regression tests. New browser capabilities also require a challenge page and `test-suite/manifest.json` entry that fail before the change and pass after it. There is no numeric coverage target; `vp run verify` is the merge gate.
+Name unit tests `*.test.ts` in `test-suite/unit/`. Use Vitest and `@effect/vitest` for Effect programs. Behavior changes require regression tests. New browser capabilities also require a challenge page and `test-suite/manifest.json` entry that fail before the change and pass after it. There is no numeric coverage target; `pnpm run verify` is the merge gate.
 
 ## Commit & Pull Request Guidelines
 

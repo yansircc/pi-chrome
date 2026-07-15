@@ -204,16 +204,16 @@ Requires Chrome 120 or newer, Node.js 22.19 or newer on the Node 22 line, or Nod
 
 ```bash
 pnpm install
-vp run verify
+pnpm run verify
 vp run smoke:connector
 ```
 
-`vp run verify` runs Vite+ formatting and linting; one strict Effect-language-service TypeScript gate for the entire repository; the browser and self-contained Pi builds; Vitest; Knip; the Effect ecosystem scanner; and a package-artifact gate that packs without lifecycle recursion, extracts the tarball into a dependency-free temporary directory, and loads the bundled Pi entry through the real Pi extension loader.
+`pnpm run verify` runs Vite+ formatting and linting; one strict Effect-language-service TypeScript gate for the entire repository; the browser and self-contained Pi builds; Vitest; Knip; the Effect ecosystem scanner; and the shared raw-archive Pi loader gate. Release archive checks use the same uploaded tarball on Linux, macOS, and Windows; the real Chrome connector smoke runs once before publication on Ubuntu.
 
 `vp run smoke:connector` builds a temporary extension against a random fake-bridge port and runs it in a fresh Chrome for Testing/Chromium profile. It never polls the production bridge. Branded Chrome 137+ rejects command-line unpacked extensions, so set `PI_CHROME_SMOKE_CHROME` to a Chrome for Testing or Chromium executable on non-macOS systems or when macOS auto-discovery cannot find one.
 
-The isolated GitHub-hosted Ubuntu release runner sets `PI_CHROME_SMOKE_NO_SANDBOX=1` because its
-AppArmor policy blocks Chrome's user-namespace sandbox. Remove that opt-in when the hosted runner
+The isolated GitHub-hosted Ubuntu release smoke passes `--no-sandbox` because its AppArmor policy
+blocks Chrome's user-namespace sandbox. Remove that release-only flag when the hosted runner
 provides a usable Chrome sandbox or the release smoke moves to a sandbox-capable runner.
 
 Extension publication is staged and validated before replacement. Prepare or validation failure

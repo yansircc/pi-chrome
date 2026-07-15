@@ -28,7 +28,7 @@ export default defineConfig({
   run: {
     tasks: {
       build: {
-        command: "node scripts/build.ts",
+        command: "pnpm run pi:build",
         cache: false,
       },
       typecheck: {
@@ -43,32 +43,16 @@ export default defineConfig({
         command: "pnpm run scan:effect",
         cache: false,
       },
-      "package:artifact": {
-        command: "node scripts/package-artifact.ts",
-        cache: false,
-      },
       "smoke:connector": {
         command: "node scripts/smoke-connector.ts",
         cache: false,
       },
       "smoke:connector:release": {
-        command: "node scripts/smoke-connector.ts --require-browser",
+        command: "node scripts/smoke-connector.ts --require-browser --no-sandbox",
         cache: false,
       },
-      verify: {
-        command: [
-          "vp check",
-          "vp run typecheck",
-          "vp run build",
-          "vp test",
-          "vp run knip",
-          "vp run lint:effect",
-          "vp run package:artifact",
-        ],
-        cache: false,
-      },
-      release: {
-        command: ["vp run verify", "vp run smoke:connector:release"],
+      "ci:verify": {
+        command: ["vp check", "vp run typecheck", "vp test", "vp run knip", "vp run lint:effect"],
         cache: false,
       },
     },

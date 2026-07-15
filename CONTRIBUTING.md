@@ -14,7 +14,7 @@ Thanks for considering a contribution. pi-chrome aims to be the **de-facto brows
 
 ```bash
 pnpm install
-vp run verify
+pnpm run verify
 
 # Link from a checkout
 pi install ./pi-chrome

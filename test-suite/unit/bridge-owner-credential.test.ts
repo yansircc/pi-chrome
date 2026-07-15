@@ -7,6 +7,7 @@ import {
   BridgeOwnerCredentialFailure,
   makeBridgeOwnerCredentialStore,
 } from "../../src/pi/bridge-owner-credential.js";
+import { assertPosixFileMode } from "../support/posix-file-mode.js";
 
 const withAgentDirectory = <A, E>(
   use: (
@@ -38,8 +39,8 @@ it.effect("creates one restricted credential across concurrent store instances",
       expect(new Set(credentials).size).toBe(1);
       expect(credentials[0]).toMatch(/^[0-9a-f]{64}$/);
       const filePath = yield* stores[0]!.filePath;
-      expect((yield* fs.stat(path.dirname(filePath))).mode & 0o777).toBe(0o700);
-      expect((yield* fs.stat(filePath)).mode & 0o777).toBe(0o600);
+      assertPosixFileMode((yield* fs.stat(path.dirname(filePath))).mode, 0o700);
+      assertPosixFileMode((yield* fs.stat(filePath)).mode, 0o600);
     }),
   ),
 );
