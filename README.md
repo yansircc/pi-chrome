@@ -208,7 +208,7 @@ pnpm run verify
 vp run smoke:connector
 ```
 
-`pnpm run verify` runs Vite+ formatting and linting; one strict Effect-language-service TypeScript gate for the entire repository; the browser and self-contained Pi builds; Vitest; Knip; the Effect ecosystem scanner; and the shared raw-archive Pi loader gate. Release archive checks use the same uploaded tarball on Linux, macOS, and Windows; the real Chrome connector smoke runs once before publication on Ubuntu.
+`pnpm run verify` runs Vite+ formatting and linting; one strict Effect-language-service TypeScript gate for the entire repository; the browser and self-contained Pi builds; Vitest; Knip; the Effect ecosystem scanner; and the generated bundle gate. CI packs one candidate on Linux, runs the raw archive loader and repository domain check there, then repeats only raw loading and registrations for that same tarball on macOS and Windows. The real Chrome connector smoke runs once before packing on Ubuntu.
 
 `vp run smoke:connector` builds a temporary extension against a random fake-bridge port and runs it in a fresh Chrome for Testing/Chromium profile. It never polls the production bridge. Branded Chrome 137+ rejects command-line unpacked extensions, so set `PI_CHROME_SMOKE_CHROME` to a Chrome for Testing or Chromium executable on non-macOS systems or when macOS auto-discovery cannot find one.
 

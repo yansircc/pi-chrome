@@ -12,8 +12,11 @@ peerDependencyRules:
   allowedVersions:
     vite: 0.2.4
 
-ignoredBuiltDependencies:
-  - "@google/genai"
-  - esbuild
-  - msgpackr-extract
-  - protobufjs
+allowBuilds:
+  "@google/genai": false
+  esbuild: false
+  msgpackr-extract: false
+  protobufjs: false
+
+minimumReleaseAgeExclude:
+  - "@yansircc/effect-scan"
