@@ -186,6 +186,18 @@ const BridgeStatusFields = {
   url: Schema.String,
   mode: Schema.Literals(["server", "client", "stopped", "closed"]),
   sessionRoutes: Schema.Array(SessionWebRouteStatus),
+  protocolCompatibility: Schema.Union([
+    Schema.Struct({
+      compatible: Schema.Literal(true),
+      expectedExtensionDisplayVersion: DisplayVersion,
+    }),
+    Schema.Struct({
+      compatible: Schema.Literal(false),
+      extensionId: ChromeExtensionId,
+      expectedExtensionDisplayVersion: DisplayVersion,
+      actualExtensionDisplayVersion: DisplayVersion,
+    }),
+  ]),
 };
 
 export const BridgeStatusResponse = Schema.Union([

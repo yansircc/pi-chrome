@@ -224,6 +224,7 @@ export class NodeBridge {
     private readonly protocolFingerprint: string,
     private readonly credentialStore: BridgeOwnerCredentialStore,
     private readonly ownerIdentityRef: Ref.Ref<BridgeOwnerIdentity | undefined>,
+    private readonly connectorObservationRef: Ref.Ref<PublicConnector | undefined>,
     private readonly connectors: ConnectorOwner,
     private readonly broker: CommandBroker,
     private readonly pairing: PairingCoordinator,
@@ -243,12 +244,14 @@ export class NodeBridge {
       const sessionBindings = yield* makeSessionConnectorBindingStore(persistence.agentDir);
       const connectors = yield* ConnectorOwner.make(persistence, broker, sessionBindings);
       const credentialStore = yield* makeBridgeOwnerCredentialStore(persistence.agentDir);
-      const { ownerIdentityRef, pairing, lifecycleGate, ownership } = yield* Effect.all({
-        ownerIdentityRef: Ref.make<BridgeOwnerIdentity | undefined>(undefined),
-        pairing: PairingCoordinator.make,
-        lifecycleGate: Semaphore.make(1),
-        ownership: Semaphore.make(1),
-      });
+      const { ownerIdentityRef, connectorObservationRef, pairing, lifecycleGate, ownership } =
+        yield* Effect.all({
+          ownerIdentityRef: Ref.make<BridgeOwnerIdentity | undefined>(undefined),
+          connectorObservationRef: Ref.make<PublicConnector | undefined>(undefined),
+          pairing: PairingCoordinator.make,
+          lifecycleGate: Semaphore.make(1),
+          ownership: Semaphore.make(1),
+        });
       return new NodeBridge(
         host,
         port,
@@ -256,6 +259,7 @@ export class NodeBridge {
         protocolFingerprint,
         credentialStore,
         ownerIdentityRef,
+        connectorObservationRef,
         connectors,
         broker,
         pairing,
@@ -573,12 +577,30 @@ export class NodeBridge {
   private get localStatus(): Effect.Effect<BridgeStatus> {
     return Effect.gen({ self: this }, function* () {
       const binding = yield* this.connectors.current;
+      const observedConnector = yield* Ref.get(this.connectorObservationRef);
       const sessionRoutes = yield* this.connectors.sessionRouteStatuses;
-      if (!binding) return { url: this.url, mode: this.runtime.mode, sessionRoutes };
+      const compatibilityConnector = observedConnector ?? binding;
+      const protocolCompatibility =
+        compatibilityConnector?.protocolFingerprint === undefined ||
+        compatibilityConnector.protocolFingerprint === this.protocolFingerprint
+          ? {
+              compatible: true as const,
+              expectedExtensionDisplayVersion: this.displayVersion(),
+            }
+          : {
+              compatible: false as const,
+              extensionId: compatibilityConnector.extensionId,
+              expectedExtensionDisplayVersion: this.displayVersion(),
+              actualExtensionDisplayVersion: compatibilityConnector.extensionDisplayVersion,
+            };
+      if (!binding) {
+        return { url: this.url, mode: this.runtime.mode, sessionRoutes, protocolCompatibility };
+      }
       return {
         url: this.url,
         mode: this.runtime.mode,
         sessionRoutes,
+        protocolCompatibility,
         binding: publicBinding(binding),
         connector: yield* this.broker.status(binding.connectorId),
       };
@@ -1455,6 +1477,7 @@ export class NodeBridge {
     headers: Record<string, string>,
   ): Effect.Effect<void, ProtocolFailure> {
     return Effect.gen({ self: this }, function* () {
+      yield* Ref.set(this.connectorObservationRef, connector);
       if (yield* this.respondIfIncompatible(connector, response, headers)) return;
       const command = yield* this.broker.next(connector, POLL_WAIT_DEADLINE_MS);
       const expectedExtensionDisplayVersion = this.displayVersion();

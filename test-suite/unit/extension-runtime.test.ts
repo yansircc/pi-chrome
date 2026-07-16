@@ -96,6 +96,10 @@ vi.mock("../../src/pi/node-bridge.js", async () => {
               url: BRIDGE_ORIGIN,
               mode: "server",
               sessionRoutes: [],
+              protocolCompatibility: {
+                compatible: true,
+                expectedExtensionDisplayVersion: "1.0.0",
+              },
               binding: {
                 connectorId: "00000000-0000-4000-8000-000000000001",
                 label: "Runtime connector",

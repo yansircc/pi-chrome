@@ -14,10 +14,16 @@ const active = (
   expiry: undefined,
 });
 
+const extensionDirectory = "/pi-chrome/dist/browser-extension";
+
 const bridge = (connected: boolean): BridgeStatusResponse => ({
   url: "http://127.0.0.1:17318",
   mode: "server",
   sessionRoutes: [],
+  protocolCompatibility: {
+    compatible: true,
+    expectedExtensionDisplayVersion: "1.0.0",
+  },
   binding: {
     connectorId: "11111111-1111-4111-8111-111111111111",
     label: "Personal",
@@ -46,6 +52,7 @@ describe("Chrome status projection", () => {
         active({ state: "indefinite" }),
         { _tag: "Available", status: bridge(true) },
         1_000,
+        extensionDirectory,
       ),
     ).toMatchObject({
       readiness: "ready",
@@ -59,6 +66,7 @@ describe("Chrome status projection", () => {
         active({ state: "indefinite" }),
         { _tag: "Available", status: bridge(false) },
         1_000,
+        extensionDirectory,
       ),
     ).toMatchObject({
       readiness: "offline",
@@ -95,6 +103,7 @@ describe("Chrome status projection", () => {
         active({ state: "indefinite" }),
         { _tag: "Available", status: { ...status, sessionRoutes: [sessionRoute] } },
         1_000,
+        extensionDirectory,
         "session:web",
       ),
     ).toMatchObject({
@@ -128,6 +137,7 @@ describe("Chrome status projection", () => {
         active({ state: "indefinite" }),
         { _tag: "Available", status: { ...status, sessionRoutes: [sessionRoute] } },
         1_000,
+        extensionDirectory,
         "session:web",
       ),
     ).toMatchObject({
@@ -144,6 +154,7 @@ describe("Chrome status projection", () => {
         active({ state: "locked" }),
         { _tag: "Available", status: bridge(true) },
         1_000,
+        extensionDirectory,
       ),
     ).toMatchObject({
       readiness: "locked",
@@ -158,10 +169,44 @@ describe("Chrome status projection", () => {
         active({ state: "timed", deadline: 721_000 }),
         { _tag: "Available", status: bridge(true) },
         1_000,
+        extensionDirectory,
       ),
     ).toMatchObject({
       readiness: "ready",
       authorization: { expiresAt: 721_000 },
+    });
+  });
+
+  it("projects the bridge-owned protocol verdict with one reload action", () => {
+    const status = bridge(true);
+    expect(
+      projectChromeStatus(
+        active({ state: "indefinite" }),
+        {
+          _tag: "Available",
+          status: {
+            ...status,
+            protocolCompatibility: {
+              compatible: false,
+              extensionId: "abcdefghijklmnopabcdefghijklmnop",
+              expectedExtensionDisplayVersion: "0.1.5",
+              actualExtensionDisplayVersion: "0.16.0",
+            },
+          },
+        },
+        1_000,
+        extensionDirectory,
+      ).requirements[0],
+    ).toEqual({
+      requirement: "ProtocolCompatible",
+      satisfied: false,
+      expectedVersion: "0.1.5",
+      actualVersion: "0.16.0",
+      remediation: {
+        type: "ReloadUnpackedExtension",
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        directory: extensionDirectory,
+      },
     });
   });
 
@@ -171,6 +216,7 @@ describe("Chrome status projection", () => {
         active({ state: "indefinite" }),
         { _tag: "Error", message: "owner unreachable" },
         1_000,
+        extensionDirectory,
       ),
     ).toMatchObject({
       readiness: "error",
@@ -182,6 +228,7 @@ describe("Chrome status projection", () => {
         { _tag: "Poisoned", epoch: 1, background: false },
         { _tag: "Available", status: bridge(true) },
         1_000,
+        extensionDirectory,
       ),
     ).toMatchObject({
       readiness: "error",

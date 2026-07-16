@@ -658,6 +658,7 @@ export default function piChrome(pi: ExtensionAPI): void {
         session,
         bridgeSnapshot,
         currentTime,
+        EXTENSION_PATH,
         id ? `session:${id}` : undefined,
       );
       yield* Effect.sync(() => publishStatus(ctx, status, currentTime));

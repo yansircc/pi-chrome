@@ -1032,6 +1032,7 @@ it.live("reports an incompatible poll without dequeueing or accepting its result
       );
       const wrongProtocolConnector = {
         ...pairedPrimary,
+        extensionDisplayVersion: "0.15.0",
         protocolFingerprint: "f".repeat(64),
       };
       const incompatible = yield* connectorRequest(bridge.url, "poll", wrongProtocolConnector);
@@ -1039,9 +1040,15 @@ it.live("reports an incompatible poll without dequeueing or accepting its result
       expect(yield* decodePollResponseJson(incompatible.text)).toEqual({
         type: "incompatible",
         expectedExtensionDisplayVersion: "0.16.0",
-        actualExtensionDisplayVersion: "0.16.0",
+        actualExtensionDisplayVersion: "0.15.0",
         expectedProtocolFingerprint: pairedPrimary.protocolFingerprint,
         actualProtocolFingerprint: "f".repeat(64),
+      });
+      expect((yield* bridge.status).protocolCompatibility).toEqual({
+        compatible: false,
+        extensionId: pairedPrimary.extensionId,
+        expectedExtensionDisplayVersion: "0.16.0",
+        actualExtensionDisplayVersion: "0.15.0",
       });
 
       const differentDisplayVersionConnector = {
@@ -1049,6 +1056,10 @@ it.live("reports an incompatible poll without dequeueing or accepting its result
         extensionDisplayVersion: "0.15.0",
       };
       const polled = yield* connectorRequest(bridge.url, "poll", differentDisplayVersionConnector);
+      expect((yield* bridge.status).protocolCompatibility).toEqual({
+        compatible: true,
+        expectedExtensionDisplayVersion: "0.16.0",
+      });
       const envelope = yield* decodePollResponseJson(polled.text);
       expect(envelope.type).toBe("command");
       if (envelope.type !== "command") return;

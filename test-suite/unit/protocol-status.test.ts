@@ -22,7 +22,15 @@ const seenConnector = {
   queuedCommands: 0,
   pendingCommands: 0,
 } as const;
-const bridge = { url: BRIDGE_ORIGIN, mode: "server", sessionRoutes: [] } as const;
+const bridge = {
+  url: BRIDGE_ORIGIN,
+  mode: "server",
+  sessionRoutes: [],
+  protocolCompatibility: {
+    compatible: true,
+    expectedExtensionDisplayVersion: "1.0.0",
+  },
+} as const;
 
 const decode = (value: unknown) => decodeBridgeStatusJson(JSON.stringify(value));
 
