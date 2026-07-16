@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
+import { COMMAND_DEADLINES_MS } from "../../src/protocol/bridge-contract.js";
 import type { WireCommand } from "../../src/protocol/schema.js";
 
 const targetMocks = vi.hoisted(() => ({
@@ -518,7 +519,7 @@ it("fails closed when lifecycle events outgrow the command-scoped early buffer",
   ).rejects.toThrow("exceeded 256 buffered lifecycle events");
 });
 
-it("rejects a concurrent navigation before it can touch the active init script", async () => {
+it("serializes concurrent navigation before it can touch the active init script", async () => {
   pageNavigateResult = { frameId: "main-frame", loaderId: "new-loader" };
   holdPageNavigate = true;
   const first = navigateTab({
@@ -533,15 +534,14 @@ it("rejects a concurrent navigation before it can touch the active init script",
   await detachExpiredDebuggers(Number.MAX_SAFE_INTEGER);
   expect(detachCalls).toBe(0);
 
-  await expect(
-    navigateTab({
-      tabId: 7,
-      url: "https://second.test/",
-      milestone: "commit",
-      timeoutMs: 1_000,
-      initScriptSource: "globalThis.__owner = 'second'",
-    }),
-  ).rejects.toThrow("already has navigation generation");
+  const second = navigateTab({
+    tabId: 7,
+    url: "https://second.test/",
+    milestone: "commit",
+    timeoutMs: 1_000,
+    initScriptSource: "globalThis.__owner = 'second'",
+  });
+  await Promise.resolve();
   expect(cdpCommands).toHaveLength(commandsBeforeSecond);
   expect(
     cdpCommands.filter(({ method }) => method === "Page.addScriptToEvaluateOnNewDocument"),
@@ -552,10 +552,50 @@ it("rejects a concurrent navigation before it can touch the active init script",
   ).toBe("globalThis.__owner = 'first'");
 
   holdPageNavigate = false;
+  beforePageNavigate = () => emitLifecycle(7, "main-frame", "new-loader", "init");
   heldPageNavigate?.(pageNavigateResult);
   emitLifecycle(7, "main-frame", "new-loader", "init");
   await expect(first).resolves.toMatchObject({ milestone: "commit" });
+  await expect(second).resolves.toMatchObject({ milestone: "commit" });
   expect(initScripts.size).toBe(0);
+});
+
+it("resets a navigation whose CDP callback outlives the whole transaction deadline", async () => {
+  vi.useFakeTimers();
+  holdSendCommand = true;
+  const timedOut = navigateTab({
+    tabId: 7,
+    url: "https://stalled.test/",
+    milestone: "commit",
+    timeoutMs: 10,
+    initScriptSource: "globalThis.__owner = 'stalled'",
+  });
+  await vi.waitFor(() => expect(heldSendCommand).toBeTypeOf("function"));
+  const staleCallback = heldSendCommand;
+  const rejected = expect(timedOut).rejects.toThrow("Navigation transaction timed out");
+
+  await vi.advanceTimersByTimeAsync(10 + COMMAND_DEADLINES_MS.navigateOverhead);
+  await rejected;
+  expect(detachCalls).toBe(1);
+
+  holdSendCommand = false;
+  pageNavigateResult = { frameId: "main-frame", loaderId: "replacement-loader" };
+  beforePageNavigate = () => emitLifecycle(7, "main-frame", "replacement-loader", "init");
+  await expect(
+    navigateTab({
+      tabId: 7,
+      url: "https://replacement.test/",
+      milestone: "commit",
+      timeoutMs: 1_000,
+      initScriptSource: "globalThis.__owner = 'replacement'",
+    }),
+  ).resolves.toMatchObject({ loaderId: "replacement-loader" });
+  expect(attachCalls).toBe(2);
+
+  staleCallback?.({});
+  await Promise.resolve();
+  expect(await attachDebugger(7)).toBeDefined();
+  expect(attachCalls).toBe(2);
 });
 
 const navigationCommand = (id: string): WireCommand => ({

@@ -173,3 +173,49 @@ it.effect("does not poll a second command while the first Chrome promise is stil
     expect(journal?.result.id).toBe(second.id);
   });
 });
+
+it.effect("finishes and journals an admitted Chrome command before runtime interruption", () => {
+  const admitted = command("admitted-before-route-refresh");
+  let resolveExecution!: (value: unknown) => void;
+  const execution = new Promise<unknown>((resolve) => {
+    resolveExecution = resolve;
+  });
+  let executing = false;
+  let journaled = false;
+
+  const port: ConnectorRuntimePort = {
+    loadConnector: Effect.succeed(connector),
+    loadJournal: Effect.sync(() => undefined),
+    deliverResult: () => Effect.sync(() => undefined),
+    clearJournal: Effect.sync(() => undefined),
+    receiveCommand: () => Effect.succeed(admitted),
+    recordExecuting: () =>
+      Effect.sync(() => {
+        executing = true;
+      }),
+    executeCommand: (current) => settleBrowserCommand(current, () => execution),
+    recordResult: () =>
+      Effect.sync(() => {
+        journaled = true;
+      }),
+  };
+
+  return Effect.gen(function* () {
+    const commandFiber = yield* Effect.forkChild(connectorRuntimeStep(port));
+    yield* Effect.yieldNow;
+    expect(executing).toBe(true);
+
+    const interruption = yield* Effect.forkChild(Fiber.interrupt(commandFiber));
+    yield* Effect.yieldNow;
+    expect(journaled).toBe(false);
+    expect(interruption.pollUnsafe()).toBeUndefined();
+
+    resolveExecution({
+      extensionId: connector.extensionId,
+      extensionDisplayVersion: connector.extensionDisplayVersion,
+      userAgent: "runtime-step-test",
+    });
+    yield* Fiber.join(interruption);
+    expect(journaled).toBe(true);
+  });
+});

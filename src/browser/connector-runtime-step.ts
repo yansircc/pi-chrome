@@ -54,22 +54,24 @@ export type ConnectorRuntimePort = {
   readonly recordResult: (command: WireCommand, result: WireResult) => RuntimeEffect<void>;
 };
 
-// One step owns exactly one durable state transition. A delivered command cannot release this
-// Effect until its non-cancellable Chrome Promise settles and its result is journaled. Therefore
-// the sequential caller cannot poll another command while an earlier side effect is still live.
+// Polling is interruptible so a connector-route change can wake a stale long poll. Once a command
+// has been received, execution and result persistence are one uninterruptible ownership turn:
+// restarting the poll loop must not orphan a live Chrome Promise and admit a second command.
 export const connectorRuntimeStep = (port: ConnectorRuntimePort): RuntimeEffect<void> =>
-  Effect.gen(function* () {
-    const connector = yield* port.loadConnector;
-    const journal = yield* port.loadJournal;
-    if (journal) {
-      yield* port.deliverResult(journal.result, connector);
-      yield* port.clearJournal;
-      return;
-    }
+  Effect.uninterruptibleMask((restore) =>
+    Effect.gen(function* () {
+      const connector = yield* restore(port.loadConnector);
+      const journal = yield* restore(port.loadJournal);
+      if (journal) {
+        yield* restore(port.deliverResult(journal.result, connector));
+        yield* port.clearJournal;
+        return;
+      }
 
-    const command = yield* port.receiveCommand(connector);
-    if (!command) return;
-    yield* port.recordExecuting(command);
-    const result = yield* port.executeCommand(command);
-    yield* port.recordResult(command, result);
-  });
+      const command = yield* restore(port.receiveCommand(connector));
+      if (!command) return;
+      yield* port.recordExecuting(command);
+      const result = yield* port.executeCommand(command);
+      yield* port.recordResult(command, result);
+    }),
+  );

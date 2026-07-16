@@ -693,7 +693,7 @@ it("keeps explicitly targeted extension pages behind the protected URL boundary"
   ).rejects.toMatchObject({ code: "protected-tab-url" });
 });
 
-it("creates one owned tab and fails closed for concurrent navigation in one session", async () => {
+it("creates one owned tab and serializes concurrent navigation in one session", async () => {
   const results = await Promise.allSettled([
     dispatchBrowserCommand(navigate),
     dispatchBrowserCommand({ ...navigate, id: "navigate-concurrently" }),
@@ -705,9 +705,8 @@ it("creates one owned tab and fails closed for concurrent navigation in one sess
     result.status === "rejected" ? [result.reason as Error] : [],
   );
 
-  expect(successes).toHaveLength(1);
-  expect(failures).toHaveLength(1);
-  expect(failures[0]?.message).toContain("already has navigation generation");
+  expect(successes).toHaveLength(2);
+  expect(failures).toHaveLength(0);
   expect([...tabs.values()].filter((tab) => tab.id !== userTab.id)).toHaveLength(1);
   expect(Object.keys(localStorage)).toHaveLength(1);
 });

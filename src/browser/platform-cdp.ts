@@ -7,6 +7,7 @@ import type {
   CdpRuntimeEvaluateResult,
   ScriptExecutionResult,
 } from "./platform-cdp-types.js";
+import { COMMAND_DEADLINES_MS } from "../protocol/bridge-contract.js";
 import { withResourceLease } from "./platform-resource-lease.js";
 
 // =================== Chrome input (CDP) layer ===================
@@ -88,6 +89,7 @@ type DetachingDebugger = {
 type DebuggerState = AttachingDebugger | AttachedDebugger | DetachingDebugger;
 
 const debuggerStates = new Map<number, DebuggerState>();
+const navigationTurns = new Map<number, Promise<void>>();
 const INPUT_IDLE_DETACH_MS = 15_000;
 const MAX_BUFFERED_NAVIGATION_EVENTS = 256;
 const CDP_VERSION = "1.3";
@@ -190,6 +192,65 @@ const waitForNavigation = (
       },
     );
   });
+
+const withNavigationDeadline = <Value>(
+  tabId: number,
+  transition: NavigationTransition,
+  timeoutMs: number,
+  execute: () => Promise<Value>,
+): Promise<Value> => {
+  const deadlineMs = timeoutMs + COMMAND_DEADLINES_MS.navigateOverhead;
+  return new Promise<Value>((resolve, reject) => {
+    let completed = false;
+    const finish = (complete: () => void): void => {
+      if (completed) return;
+      completed = true;
+      clearTimeout(timer);
+      complete();
+    };
+    const timer = setTimeout(() => {
+      const timeout = new Error(
+        `Navigation transaction timed out after ${deadlineMs}ms on tab ${tabId}`,
+      );
+      settleNavigation(transition, timeout);
+      void detachDebugger(tabId).then(
+        () => finish(() => reject(timeout)),
+        (resetCause: unknown) =>
+          finish(() =>
+            reject(
+              new AggregateError(
+                [timeout, resetCause],
+                `Navigation transaction timed out and debugger reset failed for tab ${tabId}`,
+              ),
+            ),
+          ),
+      );
+    }, deadlineMs);
+    void execute().then(
+      (value) => finish(() => resolve(value)),
+      (cause: unknown) => finish(() => reject(cause)),
+    );
+  });
+};
+
+const withNavigationTurn = async <Value>(
+  tabId: number,
+  execute: () => Promise<Value>,
+): Promise<Value> => {
+  const previous = navigationTurns.get(tabId) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  navigationTurns.set(tabId, current);
+  await previous;
+  try {
+    return await execute();
+  } finally {
+    release();
+    if (navigationTurns.get(tabId) === current) navigationTurns.delete(tabId);
+  }
+};
 
 export function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -595,13 +656,11 @@ export async function cdp(
 // Page.addScriptToEvaluateOnNewDocument registrations and their identifiers belong to the
 // chrome.debugger Page-domain session. Keep that state on the same owner record: detach destroys
 // the registration in Chrome and deleting the record atomically forgets its unusable identifier.
-export async function navigateTab(request: NavigateTabRequest): Promise<NavigationCompletion> {
+const navigateTabOwned = async (request: NavigateTabRequest): Promise<NavigationCompletion> => {
   const { tabId, url, milestone, timeoutMs, initScriptSource } = request;
   const session = await attachDebugger(tabId);
   if (session.navigation) {
-    throw new Error(
-      `Chrome tab ${tabId} already has navigation generation ${session.navigation.generation}`,
-    );
+    throw new Error(`Chrome tab ${tabId} retained an unreleased navigation owner`);
   }
 
   const transition: NavigationTransition = {
@@ -611,59 +670,64 @@ export async function navigateTab(request: NavigateTabRequest): Promise<Navigati
     settled: false,
   };
   void transition.completion.promise.catch(() => undefined);
-  return withResourceLease(
-    async () => {
-      session.navigation = transition;
-      return transition;
-    },
-    async () => {
-      await cdp(tabId, "Page.enable", {});
-      await cdp(tabId, "Page.setLifecycleEventsEnabled", { enabled: true });
-      if (attachedSession(tabId) !== session || session.navigation !== transition) {
-        throw new Error(`Chrome debugger detached before navigation on tab ${tabId}`);
-      }
-      await installNavigationInitScript(tabId, session, initScriptSource);
-      const result = await cdp(tabId, "Page.navigate", { url });
-      if (attachedSession(tabId) !== session || session.navigation !== transition) {
-        throw new Error(`Chrome debugger detached while navigating tab ${tabId}`);
-      }
-      if (typeof result.frameId !== "string" || result.frameId.length === 0) {
-        throw new Error("Chrome navigation did not return a main frame id");
-      }
-      if (result.errorText) throw new Error(`Chrome navigation failed: ${result.errorText}`);
-      if (result.isDownload) throw new Error("Chrome navigation became a download");
-      if (!result.loaderId) {
-        return {
-          kind: "same-document",
-          frameId: result.frameId,
-          initScriptExecuted: false,
-        };
-      }
-
-      bindNavigationTarget(transition, {
-        frameId: result.frameId,
-        loaderId: result.loaderId,
-        milestone,
-      });
-      await waitForNavigation(transition, timeoutMs, tabId);
-      return {
-        kind: "new-document",
-        frameId: result.frameId,
-        loaderId: result.loaderId,
-        milestone,
-      };
-    },
-    async () => {
-      try {
-        await removeNavigationInitScript(tabId);
-      } finally {
-        if (attachedSession(tabId) === session && session.navigation === transition) {
-          delete session.navigation;
+  return withNavigationDeadline(tabId, transition, timeoutMs, () =>
+    withResourceLease(
+      async () => {
+        session.navigation = transition;
+        return transition;
+      },
+      async () => {
+        await cdp(tabId, "Page.enable", {});
+        await cdp(tabId, "Page.setLifecycleEventsEnabled", { enabled: true });
+        if (attachedSession(tabId) !== session || session.navigation !== transition) {
+          throw new Error(`Chrome debugger detached before navigation on tab ${tabId}`);
         }
-      }
-    },
+        await installNavigationInitScript(tabId, session, initScriptSource);
+        const result = await cdp(tabId, "Page.navigate", { url });
+        if (attachedSession(tabId) !== session || session.navigation !== transition) {
+          throw new Error(`Chrome debugger detached while navigating tab ${tabId}`);
+        }
+        if (typeof result.frameId !== "string" || result.frameId.length === 0) {
+          throw new Error("Chrome navigation did not return a main frame id");
+        }
+        if (result.errorText) throw new Error(`Chrome navigation failed: ${result.errorText}`);
+        if (result.isDownload) throw new Error("Chrome navigation became a download");
+        if (!result.loaderId) {
+          return {
+            kind: "same-document",
+            frameId: result.frameId,
+            initScriptExecuted: false,
+          };
+        }
+
+        bindNavigationTarget(transition, {
+          frameId: result.frameId,
+          loaderId: result.loaderId,
+          milestone,
+        });
+        await waitForNavigation(transition, timeoutMs, tabId);
+        return {
+          kind: "new-document",
+          frameId: result.frameId,
+          loaderId: result.loaderId,
+          milestone,
+        };
+      },
+      async () => {
+        try {
+          await removeNavigationInitScript(tabId);
+        } finally {
+          if (attachedSession(tabId) === session && session.navigation === transition) {
+            delete session.navigation;
+          }
+        }
+      },
+    ),
   );
-}
+};
+
+export const navigateTab = (request: NavigateTabRequest): Promise<NavigationCompletion> =>
+  withNavigationTurn(request.tabId, () => navigateTabOwned(request));
 
 const installNavigationInitScript = async (
   tabId: number,
